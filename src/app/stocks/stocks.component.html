@@ -1,0 +1,140 @@
+<div class="stocks-container">
+  <!-- Toolbar -->
+  <mat-toolbar class="stocks-toolbar">
+    <div class="toolbar-content">
+      <div class="toolbar-left">
+        <button mat-icon-button (click)="router.navigate(['/dashboard'])" class="back-button">
+          <mat-icon>arrow_back</mat-icon>
+        </button>
+        <h1 class="app-title">Acciones de Bolsa</h1>
+      </div>
+      <div class="toolbar-right">
+        <div class="user-info" *ngIf="currentUser">
+          <span class="user-name">{{ currentUser.nombre }}</span>
+          <span class="user-type">{{ currentUser.tipo }}</span>
+        </div>
+        <button mat-icon-button [matMenuTriggerFor]="menu" class="menu-button">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #menu="matMenu">
+          <button mat-menu-item (click)="router.navigate(['/dashboard'])">
+            <mat-icon>dashboard</mat-icon>
+            <span>Dashboard</span>
+          </button>
+          <button mat-menu-item (click)="logout()">
+            <mat-icon>logout</mat-icon>
+            <span>Cerrar Sesión</span>
+          </button>
+        </mat-menu>
+      </div>
+    </div>
+  </mat-toolbar>
+
+  <!-- Main Content -->
+  <div class="stocks-content">
+    <div class="stocks-layout">
+      <!-- Lista de Acciones -->
+      <div class="stocks-list-container">
+        <mat-card class="list-card">
+          <mat-card-content>
+            <div class="filter-section">
+              <h2 class="section-title">Listado de Acciones</h2>
+              <mat-form-field appearance="outline" class="country-filter">
+                <mat-label>Filtrar por País</mat-label>
+                <mat-select [(ngModel)]="selectedCountry" (selectionChange)="onCountryChange()">
+                  <mat-option value="all">Todos los Países</mat-option>
+                  <mat-option value="Colombia">Colombia (BVC)</mat-option>
+                  <mat-option value="Ecuador">Ecuador</mat-option>
+                  <mat-option value="Perú">Perú (BVL)</mat-option>
+                </mat-select>
+              </mat-form-field>
+            </div>
+
+            <div class="stocks-list">
+              <mat-list>
+                <mat-list-item 
+                  *ngFor="let stock of filteredStocks" 
+                  class="stock-item"
+                  [class.selected]="selectedStock?.symbol === stock.symbol"
+                  (click)="selectStock(stock)">
+                  <div class="stock-info">
+                    <div class="stock-header">
+                      <div class="stock-symbol">{{ stock.symbol }}</div>
+                      <mat-chip 
+                        [ngClass]="stock.changePercent >= 0 ? 'positive' : 'negative'"
+                        class="change-chip">
+                        <mat-icon>{{ stock.changePercent >= 0 ? 'trending_up' : 'trending_down' }}</mat-icon>
+                        {{ stock.changePercent >= 0 ? '+' : '' }}{{ stock.changePercent.toFixed(2) }}%
+                      </mat-chip>
+                    </div>
+                    <div class="stock-name">{{ stock.name }}</div>
+                    <div class="stock-details">
+                      <span class="country-badge" [ngClass]="'country-' + stock.country.toLowerCase()">
+                        {{ stock.country }}
+                      </span>
+                      <span class="stock-price">${{ stock.price.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
+                    </div>
+                  </div>
+                </mat-list-item>
+              </mat-list>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
+
+      <!-- Gráfico y Detalles -->
+      <div class="chart-container">
+        <mat-card class="chart-card" *ngIf="selectedStock; else noSelection">
+          <mat-card-content>
+            <div class="stock-detail-header">
+              <div>
+                <h2 class="selected-stock-title">{{ selectedStock.symbol }}</h2>
+                <p class="selected-stock-name">{{ selectedStock.name }}</p>
+              </div>
+              <div class="stock-price-info">
+                <div class="current-price">
+                  ${{ selectedStock.price.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                </div>
+                <div class="price-change" [ngClass]="selectedStock.changePercent >= 0 ? 'positive' : 'negative'">
+                  <mat-icon>{{ selectedStock.changePercent >= 0 ? 'trending_up' : 'trending_down' }}</mat-icon>
+                  <span>
+                    {{ selectedStock.change >= 0 ? '+' : '' }}${{ selectedStock.change.toFixed(2) }}
+                    ({{ selectedStock.changePercent >= 0 ? '+' : '' }}{{ selectedStock.changePercent.toFixed(2) }}%)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="chart-wrapper">
+              <canvas #stockChartCanvas class="stock-chart"></canvas>
+            </div>
+
+            <div class="stock-stats">
+              <div class="stat-item">
+                <span class="stat-label">País:</span>
+                <span class="stat-value">{{ selectedStock.country }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Volumen:</span>
+                <span class="stat-value">{{ selectedStock.volume.toLocaleString('es-ES') }}</span>
+              </div>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <ng-template #noSelection>
+          <mat-card class="chart-card empty-state">
+            <mat-card-content>
+              <div class="empty-state-content">
+                <mat-icon class="empty-icon">show_chart</mat-icon>
+                <h3>Selecciona una Acción</h3>
+                <p>Haz clic en una acción del listado para ver su comportamiento histórico en el gráfico.</p>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </ng-template>
+      </div>
+    </div>
+  </div>
+</div>
+

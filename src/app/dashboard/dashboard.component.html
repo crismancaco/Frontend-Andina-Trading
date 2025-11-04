@@ -1,0 +1,574 @@
+<div class="dashboard-container">
+  <!-- Toolbar -->
+  <mat-toolbar class="dashboard-toolbar">
+    <div class="toolbar-content">
+      <div class="toolbar-left">
+        <button mat-button [matMenuTriggerFor]="menu" class="app-title-button">
+          <h1 class="app-title">Andina Trading</h1>
+        </button>
+        <mat-menu #menu="matMenu">
+          <button mat-menu-item (click)="navigateToStocks()">
+            <mat-icon>show_chart</mat-icon>
+            <span>Ver Acciones</span>
+          </button>
+          <button mat-menu-item (click)="logout()">
+            <mat-icon>logout</mat-icon>
+            <span>Cerrar Sesión</span>
+          </button>
+        </mat-menu>
+      </div>
+      <div class="toolbar-right">
+        <div class="user-info" *ngIf="currentUser">
+          <span class="user-name">{{ currentUser.nombre }}</span>
+          <span class="user-type">{{ currentUser.tipo }}</span>
+        </div>
+      </div>
+    </div>
+  </mat-toolbar>
+
+  <!-- Main Content -->
+  <div class="dashboard-content">
+    <!-- Vista para Comisionista -->
+    <div *ngIf="isComisionista" class="comisionista-view">
+      <!-- Tabs para navegar entre Contratos y Recomendaciones -->
+      <mat-tab-group [(selectedIndex)]="selectedTabIndex" (selectedIndexChange)="onTabChange($event)" class="comisionista-tabs">
+        <!-- Tab de Contratos -->
+        <mat-tab label="Contratos">
+          <!-- Contratos Pendientes -->
+          <mat-card class="contracts-card">
+        <mat-card-header>
+          <mat-card-title>
+            Contratos Pendientes de Firma
+          </mat-card-title>
+          <mat-card-subtitle>Lista de contratos creados por inversionistas</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div *ngIf="contracts.length === 0" class="no-contracts">
+            <mat-icon class="empty-icon">inbox</mat-icon>
+            <p>No hay contratos disponibles</p>
+          </div>
+          <table mat-table [dataSource]="contracts" class="contracts-table" *ngIf="contracts.length > 0">
+            <!-- ID Column -->
+            <ng-container matColumnDef="id">
+              <th mat-header-cell *matHeaderCellDef>ID</th>
+              <td mat-cell *matCellDef="let contrato">{{ contrato.id_contrato }}</td>
+            </ng-container>
+
+            <!-- Fecha Column -->
+            <ng-container matColumnDef="fecha">
+              <th mat-header-cell *matHeaderCellDef>Fecha</th>
+              <td mat-cell *matCellDef="let contrato">
+                {{ contrato.fecha_creacion | date:'short':'es-ES' }}
+              </td>
+            </ng-container>
+
+            <!-- Inversionista Column -->
+            <ng-container matColumnDef="inversionista">
+              <th mat-header-cell *matHeaderCellDef>Inversionista</th>
+              <td mat-cell *matCellDef="let contrato">
+                {{ getContractDetails(contrato.id_contrato).investorName || 'N/A' }}
+              </td>
+            </ng-container>
+
+            <!-- Acción Column -->
+            <ng-container matColumnDef="accion">
+              <th mat-header-cell *matHeaderCellDef>Acción</th>
+              <td mat-cell *matCellDef="let contrato">
+                <div class="stock-info-cell">
+                  <span class="stock-symbol">{{ getContractDetails(contrato.id_contrato).symbol || 'N/A' }}</span>
+                  <span class="stock-name">{{ getContractDetails(contrato.id_contrato).stockName || '' }}</span>
+                </div>
+              </td>
+            </ng-container>
+
+            <!-- Cantidad Column -->
+            <ng-container matColumnDef="cantidad">
+              <th mat-header-cell *matHeaderCellDef>Cantidad</th>
+              <td mat-cell *matCellDef="let contrato">
+                {{ getContractDetails(contrato.id_contrato).cantidad || 0 }} acciones
+              </td>
+            </ng-container>
+
+            <!-- Total Column -->
+            <ng-container matColumnDef="total">
+              <th mat-header-cell *matHeaderCellDef>Valor Total</th>
+              <td mat-cell *matCellDef="let contrato">
+                ${{ getContractDetails(contrato.id_contrato).total?.toFixed(2) || '0.00' }}
+              </td>
+            </ng-container>
+
+            <!-- Acciones Column -->
+            <ng-container matColumnDef="acciones">
+              <th mat-header-cell *matHeaderCellDef>Acciones</th>
+              <td mat-cell *matCellDef="let contrato">
+                <button 
+                  mat-raised-button 
+                  color="primary" 
+                  (click)="signAndDownloadContract(contrato)"
+                  class="sign-button">
+                  Firmar y Descargar
+                </button>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+          </table>
+        </mat-card-content>
+      </mat-card>
+        </mat-tab>
+
+        <!-- Tab de Recomendaciones -->
+        <mat-tab label="Recomendaciones">
+          <!-- Vista de Trading para Comisionista -->
+          <div class="trading-section">
+            <h2 class="section-title">Análisis y Recomendaciones</h2>
+            
+            <!-- Layout Principal: Gráfico, Panel de Compra, Panel de Selección -->
+            <div class="charts-grid-first-row">
+          <!-- Columna Izquierda: Gráfico -->
+          <mat-card class="chart-card">
+            <mat-card-content>
+              <canvas #lineChartCanvas class="chart"></canvas>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- Columna Central: Panel de Compra -->
+          <mat-card class="chart-card purchase-panel">
+            <mat-card-content>
+              <h2 class="panel-title">Crear Recomendación</h2>
+              
+              <div class="purchase-info" *ngIf="selectedStock; else noStockSelected">
+                <div class="selected-stock-info">
+                  <div class="stock-header-compra">
+                    <span class="stock-symbol-compra">{{ selectedStock.symbol }}</span>
+                    <mat-chip 
+                      [ngClass]="selectedStock.changePercent >= 0 ? 'positive' : 'negative'"
+                      class="change-chip-small">
+                      <mat-icon>{{ selectedStock.changePercent >= 0 ? 'trending_up' : 'trending_down' }}</mat-icon>
+                      {{ selectedStock.changePercent >= 0 ? '+' : '' }}{{ selectedStock.changePercent.toFixed(2) }}%
+                    </mat-chip>
+                  </div>
+                  <div class="stock-name-compra">{{ selectedStock.name }}</div>
+                  <div class="stock-price-display">
+                    <span class="price-label">Precio actual:</span>
+                    <span class="price-value">${{ selectedStock.price.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
+                  </div>
+                </div>
+
+                <mat-form-field appearance="outline" class="quantity-field">
+                  <mat-label>Cantidad</mat-label>
+                  <input 
+                    matInput 
+                    type="number" 
+                    [(ngModel)]="cantidadCompra"
+                    (ngModelChange)="onCantidadChange()"
+                    min="1"
+                    required>
+                  <mat-icon matPrefix>shopping_cart</mat-icon>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="price-field">
+                  <mat-label>Precio por unidad</mat-label>
+                  <input 
+                    matInput 
+                    type="number" 
+                    [(ngModel)]="precioCompra"
+                    (ngModelChange)="calculateTotal()"
+                    min="0"
+                    step="0.01"
+                    required>
+                  <span matPrefix>$</span>
+                </mat-form-field>
+
+                <div class="total-section">
+                  <div class="total-label">Total a recomendar:</div>
+                  <div class="total-value">${{ totalCompra.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</div>
+                </div>
+
+                <button 
+                  mat-raised-button 
+                  color="primary"
+                  class="buy-button"
+                  (click)="comprarAccion()"
+                  [disabled]="cantidadCompra <= 0 || precioCompra <= 0">
+                  Crear Recomendación
+                </button>
+              </div>
+
+              <ng-template #noStockSelected>
+                <div class="empty-purchase-state">
+                  <mat-icon class="empty-icon">shopping_cart</mat-icon>
+                  <p>Selecciona una acción para crear recomendación</p>
+                </div>
+              </ng-template>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- Columna Derecha: Panel de Selección de Acciones -->
+          <mat-card class="chart-card stocks-panel">
+            <mat-card-content>
+              <h2 class="panel-title">Seleccionar Acción</h2>
+              
+              <mat-form-field appearance="outline" class="country-filter">
+                <mat-label>Filtrar por País</mat-label>
+                <mat-select [(ngModel)]="selectedCountry" (selectionChange)="onCountryChange()">
+                  <mat-option value="all">Todos los Países</mat-option>
+                  <mat-option value="Colombia">Colombia (BVC)</mat-option>
+                  <mat-option value="Ecuador">Ecuador</mat-option>
+                  <mat-option value="Perú">Perú (BVL)</mat-option>
+                </mat-select>
+              </mat-form-field>
+
+              <div class="stocks-list-container">
+                <mat-list class="stocks-list">
+                  <mat-list-item 
+                    *ngFor="let stock of filteredStocks" 
+                    class="stock-item"
+                    [class.selected]="selectedStock?.symbol === stock.symbol"
+                    (click)="selectStock(stock)">
+                    <div class="stock-info">
+                      <div class="stock-header">
+                        <div class="stock-symbol">{{ stock.symbol }}</div>
+                        <mat-chip 
+                          [ngClass]="stock.changePercent >= 0 ? 'positive' : 'negative'"
+                          class="change-chip">
+                          <mat-icon>{{ stock.changePercent >= 0 ? 'trending_up' : 'trending_down' }}</mat-icon>
+                          {{ stock.changePercent >= 0 ? '+' : '' }}{{ stock.changePercent.toFixed(2) }}%
+                        </mat-chip>
+                      </div>
+                      <div class="stock-name">{{ stock.name }}</div>
+                      <div class="stock-details">
+                        <span class="country-badge" [ngClass]="'country-' + stock.country.toLowerCase()">
+                          {{ stock.country }}
+                        </span>
+                        <span class="stock-price">${{ stock.price.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
+                      </div>
+                    </div>
+                  </mat-list-item>
+                </mat-list>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </div>
+
+      <!-- Lista de Recomendaciones Creadas -->
+      <mat-card class="my-recommendations-card" *ngIf="recomendacionesCreadas.length > 0">
+        <mat-card-header>
+          <mat-card-title>
+
+            Mis Recomendaciones Creadas
+          </mat-card-title>
+          <mat-card-subtitle>Historial de recomendaciones que has creado</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="my-recommendations-list">
+            <div 
+              *ngFor="let rec of recomendacionesCreadas" 
+              class="my-recommendation-item">
+              <div class="recommendation-header">
+                <div class="recommendation-stock">
+                  <span class="recommendation-symbol">{{ rec.id_accion }}</span>
+                  <span class="recommendation-name">{{ rec.nombre_accion }}</span>
+                </div>
+                <div class="recommendation-actions">
+                  <button 
+                    mat-raised-button
+                    class="delete-button"
+                    (click)="eliminarRecomendacion(rec.id_recomendacion)"
+                    matTooltip="Eliminar recomendación">
+                   
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+              <div class="recommendation-details">
+                <div class="recommendation-info">
+                  <span><strong>Cantidad:</strong> {{ rec.cantidad }} acciones</span>
+                  <span><strong>Precio:</strong> ${{ rec.precio.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
+                  <span><strong>Total:</strong> ${{ rec.valor_total.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
+                </div>
+                <div class="recommendation-meta">
+                  <span class="recommendation-date">{{ rec.fecha_recomendacion | date:'short':'es-ES' }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="my-recommendations-card" *ngIf="recomendacionesCreadas.length === 0">
+        <mat-card-content>
+          <div class="no-recommendations">
+            <mat-icon class="empty-icon">star_border</mat-icon>
+            <p>No has creado recomendaciones aún</p>
+            <p class="hint">Usa la sección de arriba para crear tu primera recomendación</p>
+          </div>
+        </mat-card-content>
+      </mat-card>
+        </mat-tab>
+      </mat-tab-group>
+    </div>
+
+    <!-- Vista para Inversionista (vista original) -->
+    <div *ngIf="!isComisionista">
+      <!-- Recomendaciones del Comisionista -->
+      <mat-card class="recommendations-card" *ngIf="recomendaciones.length > 0">
+        <mat-card-header>
+          <mat-card-title>
+            Recomendaciones del Comisionista
+          </mat-card-title>
+          <mat-card-subtitle>Últimas recomendaciones de inversión</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="recommendations-list">
+            <div 
+              *ngFor="let rec of recomendaciones" 
+              class="recommendation-item"
+              (click)="aplicarRecomendacion(rec)">
+              <div class="recommendation-header">
+                <div class="recommendation-stock">
+                  <span class="recommendation-symbol">{{ rec.id_accion }}</span>
+                  <span class="recommendation-name">{{ rec.nombre_accion }}</span>
+                </div>
+                <mat-chip class="recommendation-badge">
+                  Recomendado
+                </mat-chip>
+              </div>
+              <div class="recommendation-details">
+                <div class="recommendation-info">
+                  <span><strong>Cantidad:</strong> {{ rec.cantidad }} acciones</span>
+                  <span><strong>Precio:</strong> ${{ rec.precio.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
+                  <span><strong>Total:</strong> ${{ rec.valor_total.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
+                </div>
+                <div class="recommendation-meta">
+                  <span class="recommendation-comisionista">Por: {{ rec.nombre_comisionista }}</span>
+                  <span class="recommendation-date">{{ rec.fecha_recomendacion | date:'short':'es-ES' }}</span>
+                </div>
+              </div>
+              <button 
+                mat-raised-button 
+                color="primary" 
+                class="apply-recommendation-btn"
+                (click)="aplicarRecomendacion(rec); $event.stopPropagation()">
+              
+                Aplicar Recomendación
+              </button>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Estadísticas Rápidas -->
+      <div class="stats-grid">
+        <mat-card class="stat-card" *ngFor="let stat of stats">
+          <mat-card-content>
+            <div class="stat-content">
+              <div class="stat-label">{{ stat.label }}</div>
+              <div class="stat-value">{{ stat.value }}</div>
+              <div class="stat-change" [class.positive]="stat.positive" [class.negative]="!stat.positive">
+                <mat-icon>{{ stat.positive ? 'trending_up' : 'trending_down' }}</mat-icon>
+                {{ stat.change }}
+              </div>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
+
+    <!-- Layout Principal -->
+    <!-- Tres columnas: Espacio Izquierdo, Panel de Compra (centro), Panel de Selección (derecha) -->
+    <div class="charts-grid-first-row">
+      <!-- Columna Izquierda: Gráfico -->
+      <mat-card class="chart-card">
+        <mat-card-content>
+          <canvas #lineChartCanvas class="chart"></canvas>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Columna Central: Panel de Compra -->
+      <mat-card class="chart-card purchase-panel">
+        <mat-card-content>
+          <h2 class="panel-title">Comprar Acción</h2>
+          
+          <div class="purchase-info" *ngIf="selectedStock; else noStockSelected">
+            <div class="selected-stock-info">
+              <div class="stock-header-compra">
+                <span class="stock-symbol-compra">{{ selectedStock.symbol }}</span>
+                <mat-chip 
+                  [ngClass]="selectedStock.changePercent >= 0 ? 'positive' : 'negative'"
+                  class="change-chip-small">
+                  <mat-icon>{{ selectedStock.changePercent >= 0 ? 'trending_up' : 'trending_down' }}</mat-icon>
+                  {{ selectedStock.changePercent >= 0 ? '+' : '' }}{{ selectedStock.changePercent.toFixed(2) }}%
+                </mat-chip>
+              </div>
+              <div class="stock-name-compra">{{ selectedStock.name }}</div>
+              <div class="stock-price-display">
+                <span class="price-label">Precio actual:</span>
+                <span class="price-value">${{ selectedStock.price.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
+              </div>
+            </div>
+
+            <mat-form-field appearance="outline" class="quantity-field">
+              <mat-label>Cantidad</mat-label>
+              <input 
+                matInput 
+                type="number" 
+                [(ngModel)]="cantidadCompra"
+                (ngModelChange)="onCantidadChange()"
+                min="1"
+                required>
+              <mat-icon matPrefix>shopping_cart</mat-icon>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="price-field">
+              <mat-label>Precio por unidad</mat-label>
+              <input 
+                matInput 
+                type="number" 
+                [(ngModel)]="precioCompra"
+                (ngModelChange)="calculateTotal()"
+                min="0"
+                step="0.01"
+                required>
+              <span matPrefix>$</span>
+            </mat-form-field>
+
+            <div class="total-section">
+              <div class="total-label">Total a pagar:</div>
+              <div class="total-value">${{ totalCompra.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</div>
+            </div>
+
+            <button 
+              mat-raised-button 
+              color="primary" 
+              class="buy-button"
+              (click)="comprarAccion()"
+              [disabled]="cantidadCompra <= 0 || precioCompra <= 0">
+              
+              Comprar Acción
+            </button>
+          </div>
+
+          <ng-template #noStockSelected>
+            <div class="empty-purchase-state">
+              <mat-icon class="empty-icon">shopping_cart</mat-icon>
+              <p>Selecciona una acción para comprar</p>
+            </div>
+          </ng-template>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Columna Derecha: Panel de Selección de Acciones -->
+      <mat-card class="chart-card stocks-panel">
+        <mat-card-content>
+          <h2 class="panel-title">Seleccionar Acción</h2>
+          
+          <mat-form-field appearance="outline" class="country-filter">
+            <mat-label>Filtrar por País</mat-label>
+            <mat-select [(ngModel)]="selectedCountry" (selectionChange)="onCountryChange()">
+              <mat-option value="all">Todos los Países</mat-option>
+              <mat-option value="Colombia">Colombia (BVC)</mat-option>
+              <mat-option value="Ecuador">Ecuador</mat-option>
+              <mat-option value="Perú">Perú (BVL)</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <div class="stocks-list-container">
+            <mat-list class="stocks-list">
+              <mat-list-item 
+                *ngFor="let stock of filteredStocks" 
+                class="stock-item"
+                [class.selected]="selectedStock?.symbol === stock.symbol"
+                (click)="selectStock(stock)">
+                <div class="stock-info">
+                  <div class="stock-header">
+                    <div class="stock-symbol">{{ stock.symbol }}</div>
+                    <mat-chip 
+                      [ngClass]="stock.changePercent >= 0 ? 'positive' : 'negative'"
+                      class="change-chip">
+                      <mat-icon>{{ stock.changePercent >= 0 ? 'trending_up' : 'trending_down' }}</mat-icon>
+                      {{ stock.changePercent >= 0 ? '+' : '' }}{{ stock.changePercent.toFixed(2) }}%
+                    </mat-chip>
+                  </div>
+                  <div class="stock-name">{{ stock.name }}</div>
+                  <div class="stock-details">
+                    <span class="country-badge" [ngClass]="'country-' + stock.country.toLowerCase()">
+                      {{ stock.country }}
+                    </span>
+                    <span class="stock-price">${{ stock.price.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</span>
+                  </div>
+                </div>
+              </mat-list-item>
+            </mat-list>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <!-- Panel de Compras Realizadas -->
+    <mat-card class="purchases-card">
+      <mat-card-header>
+        <mat-card-title>
+      
+          Historial de Compras
+        </mat-card-title>
+        <mat-card-subtitle>Lista de todas las compras realizadas</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div *ngIf="purchases.length === 0" class="no-purchases">
+          <mat-icon class="empty-icon">shopping_cart</mat-icon>
+          <p>No has realizado compras aún</p>
+          <p class="hint">Cuando realices tu primera compra, aparecerá aquí</p>
+        </div>
+        <div *ngIf="purchases.length > 0" class="purchases-list">
+          <div 
+            *ngFor="let purchase of purchases" 
+            class="purchase-item">
+            <div class="purchase-header">
+              <div class="purchase-stock">
+                <span class="purchase-symbol">{{ purchase.id_accion }}</span>
+                <span class="purchase-name">{{ getStockName(purchase.id_accion) }}</span>
+              </div>
+              <div class="purchase-status">
+                <mat-chip class="status-chip completed">
+              
+                  Completada
+                </mat-chip>
+              </div>
+            </div>
+            <div class="purchase-details">
+              <div class="purchase-info">
+                <span class="info-item">
+                 
+                  <strong>Cantidad:</strong> {{ purchase.cantidad }} acciones
+                </span>
+                <span class="info-item">
+           
+                  <strong>Precio unitario:</strong> ${{ purchase.precio.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                </span>
+                <span class="info-item">
+              
+                  <strong>Total:</strong> ${{ (purchase.cantidad * purchase.precio).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                </span>
+              </div>
+              <div class="purchase-meta">
+                <span class="purchase-country" *ngIf="getStockCountry(purchase.id_accion)">
+              
+                  {{ getStockCountry(purchase.id_accion) }}
+                </span>
+                <span class="purchase-date">
+                  
+                  {{ purchase.fecha_orden | date:'short':'es-ES' }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+    </div>
+
+  </div>
+</div>
+

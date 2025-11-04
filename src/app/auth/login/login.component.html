@@ -1,0 +1,71 @@
+<div class="auth-container">
+  <mat-card class="auth-card">
+    <mat-card-header class="auth-header">
+      <h1 class="app-title">Andina Trading</h1>
+      <p class="auth-subtitle">Inicia sesión en tu cuenta</p>
+    </mat-card-header>
+
+    <mat-card-content>
+      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="auth-form">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Correo Electrónico</mat-label>
+          <input matInput type="email" formControlName="email" placeholder="tu@email.com" />
+          @if (email?.invalid && email?.touched) {
+            <mat-error>
+              @if (email?.errors?.['required']) {
+                El correo es requerido
+              } @else if (email?.errors?.['email']) {
+                Ingresa un correo válido
+              }
+            </mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Contraseña</mat-label>
+          <input matInput type="password" formControlName="password" placeholder="••••••••" />
+          @if (password?.invalid && password?.touched) {
+            <mat-error>
+              @if (password?.errors?.['required']) {
+                La contraseña es requerida
+              } @else if (password?.errors?.['minlength']) {
+                La contraseña debe tener al menos 6 caracteres
+              }
+            </mat-error>
+          }
+        </mat-form-field>
+
+        <div class="form-options">
+          <mat-checkbox formControlName="rememberMe">Recordarme</mat-checkbox>
+          <a href="#" class="forgot-password">¿Olvidaste tu contraseña?</a>
+        </div>
+
+        @if (errorMessage) {
+          <div class="alert alert-error">{{ errorMessage }}</div>
+        }
+
+        <button
+          mat-raised-button
+          color="primary"
+          type="submit"
+          class="submit-button"
+          [disabled]="isLoading || loginForm.invalid"
+        >
+          @if (isLoading) {
+            <mat-spinner diameter="20" class="spinner-inline"></mat-spinner>
+            <span>Iniciando sesión...</span>
+          } @else {
+            Iniciar Sesión
+          }
+        </button>
+      </form>
+    </mat-card-content>
+
+    <mat-card-footer class="auth-footer">
+      <p>
+        ¿No tienes una cuenta?
+        <a routerLink="/register" class="link">Regístrate aquí</a>
+      </p>
+    </mat-card-footer>
+  </mat-card>
+</div>

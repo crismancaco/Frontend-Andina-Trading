@@ -1,0 +1,82 @@
+<div class="contract-container">
+  <mat-toolbar color="primary" class="contract-toolbar">
+    <button mat-icon-button (click)="goBack()" class="back-button">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <span class="toolbar-title">Contrato de Compra de Acciones</span>
+  </mat-toolbar>
+
+  <div class="contract-content" *ngIf="contrato && stock">
+    <!-- Información de la acción -->
+    <mat-card class="stock-info-card">
+      <mat-card-header>
+        <mat-card-title>
+          
+          {{ stock.symbol }} - {{ stock.name }}
+        </mat-card-title>
+        <mat-card-subtitle>{{ stock.country }}</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="stock-details">
+          <div class="detail-item">
+            <span class="label">Precio actual:</span>
+            <span class="value price-value">${{ stock.price.toFixed(2) }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="label">Cambio:</span>
+            <span class="value" [class.positive]="stock.changePercent >= 0" [class.negative]="stock.changePercent < 0">
+              {{ stock.changePercent >= 0 ? '+' : '' }}{{ stock.changePercent.toFixed(2) }}%
+            </span>
+          </div>
+          <div class="detail-item">
+            <span class="label">Cantidad a comprar:</span>
+            <span class="value">{{ cantidad }} acciones</span>
+          </div>
+          <div class="detail-item">
+            <span class="label">Precio unitario:</span>
+            <span class="value price-value">${{ precio.toFixed(2) }}</span>
+          </div>
+          <div class="detail-item total">
+            <span class="label">Total:</span>
+            <span class="value total-value">${{ (cantidad * precio).toFixed(2) }}</span>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Tabla del contrato -->
+    <mat-card class="contract-table-card">
+      <mat-card-header>
+        <mat-card-title>
+    
+          Detalles del Contrato
+        </mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <table mat-table [dataSource]="contractData" class="contract-table">
+          <ng-container matColumnDef="campo">
+            <th mat-header-cell *matHeaderCellDef>Campo</th>
+            <td mat-cell *matCellDef="let element" class="field-cell">{{ element.campo }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="valor">
+            <th mat-header-cell *matHeaderCellDef>Valor</th>
+            <td mat-cell *matCellDef="let element" class="value-cell">{{ element.valor }}</td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        </table>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Botón de descarga -->
+    <div class="action-buttons">
+      <button mat-raised-button color="primary" (click)="downloadPDF()" class="download-button">
+      
+        Firmar Contrato y Descargar PDF
+      </button>
+    </div>
+  </div>
+</div>
+

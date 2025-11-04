@@ -1,0 +1,168 @@
+<div class="auth-container">
+  <mat-card class="auth-card">
+    <mat-card-header class="auth-header">
+      <h1 class="app-title">Andina Trading</h1>
+      <p class="auth-subtitle">Crea tu cuenta y comienza a operar</p>
+    </mat-card-header>
+
+    <mat-card-content>
+      <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" class="auth-form">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Nombre Completo</mat-label>
+          <input matInput type="text" formControlName="nombre" placeholder="Juan Pérez" maxlength="100" />
+          @if (nombre?.invalid && nombre?.touched) {
+            <mat-error>
+              @if (nombre?.errors?.['required']) {
+                El nombre es requerido
+              } @else if (nombre?.errors?.['minlength']) {
+                El nombre debe tener al menos 3 caracteres
+              }
+            </mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Correo Electrónico</mat-label>
+          <input matInput type="email" formControlName="email" placeholder="tu@email.com" />
+          @if (email?.invalid && email?.touched) {
+            <mat-error>
+              @if (email?.errors?.['required']) {
+                El correo es requerido
+              } @else if (email?.errors?.['email']) {
+                Ingresa un correo válido
+              }
+            </mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Teléfono</mat-label>
+          <input matInput type="tel" formControlName="telefono" placeholder="+57 300 123 4567" maxlength="20" />
+          @if (telefono?.invalid && telefono?.touched) {
+            <mat-error>
+              @if (telefono?.errors?.['required']) {
+                El teléfono es requerido
+              } @else if (telefono?.errors?.['pattern']) {
+                Ingresa un teléfono válido
+              }
+            </mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Dirección</mat-label>
+          <input matInput type="text" formControlName="direccion" placeholder="Calle 123 #45-67, Ciudad" maxlength="255" />
+          @if (direccion?.invalid && direccion?.touched) {
+            <mat-error>
+              @if (direccion?.errors?.['required']) {
+                La dirección es requerida
+              } @else if (direccion?.errors?.['minlength']) {
+                La dirección debe tener al menos 5 caracteres
+              }
+            </mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Tipo de Usuario</mat-label>
+          <mat-select formControlName="tipo">
+            <mat-option value="">Selecciona un tipo</mat-option>
+            <mat-option value="inversionista">Inversionista</mat-option>
+            <mat-option value="comisionista">Comisionista</mat-option>
+          </mat-select>
+          @if (tipo?.invalid && tipo?.touched) {
+            <mat-error>Debes seleccionar un tipo de usuario</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Contraseña</mat-label>
+          <input matInput type="password" formControlName="password" placeholder="••••••••" />
+          @if (password?.invalid && password?.touched) {
+            <mat-error>
+              @if (password?.errors?.['required']) {
+                La contraseña es requerida
+              } @else if (password?.errors?.['minlength']) {
+                La contraseña debe tener al menos 8 caracteres
+              } @else if (password?.errors?.['passwordStrength']) {
+                Debe contener mayúsculas, minúsculas, números y caracteres especiales
+              }
+            </mat-error>
+          }
+        </mat-form-field>
+        @if (password?.value) {
+          <div class="password-strength">
+            <div class="strength-bar">
+              <mat-progress-bar
+                mode="determinate"
+                [value]="getPasswordStrength() === 'weak' ? 33 : getPasswordStrength() === 'medium' ? 66 : 100"
+                [color]="getPasswordStrength() === 'weak' ? 'warn' : getPasswordStrength() === 'medium' ? 'accent' : 'primary'"
+                class="strength-progress"
+              ></mat-progress-bar>
+            </div>
+            <span class="strength-text" [class]="getPasswordStrength()">
+              @if (getPasswordStrength() === 'weak') {
+                Débil
+              } @else if (getPasswordStrength() === 'medium') {
+                Media
+              } @else {
+                Fuerte
+              }
+            </span>
+          </div>
+        }
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Confirmar Contraseña</mat-label>
+          <input matInput type="password" formControlName="confirmPassword" placeholder="••••••••" />
+          @if (confirmPassword?.invalid && confirmPassword?.touched) {
+            <mat-error>
+              @if (confirmPassword?.errors?.['required']) {
+                Confirma tu contraseña
+              } @else if (confirmPassword?.errors?.['passwordMismatch']) {
+                Las contraseñas no coinciden
+              }
+            </mat-error>
+          }
+        </mat-form-field>
+
+        <mat-checkbox formControlName="terms" class="terms-checkbox">
+          Acepto los <a href="#" class="link">términos y condiciones</a> y la <a href="#" class="link">política de privacidad</a>
+        </mat-checkbox>
+        @if (terms?.invalid && terms?.touched) {
+          <div class="error-message">Debes aceptar los términos y condiciones</div>
+        }
+
+        @if (errorMessage) {
+          <div class="alert alert-error">{{ errorMessage }}</div>
+        }
+
+        @if (successMessage) {
+          <div class="alert alert-success">{{ successMessage }}</div>
+        }
+
+        <button
+          mat-raised-button
+          color="primary"
+          type="submit"
+          class="submit-button"
+          [disabled]="isLoading || registerForm.invalid"
+        >
+          @if (isLoading) {
+            <mat-spinner diameter="20" class="spinner-inline"></mat-spinner>
+            <span>Creando cuenta...</span>
+          } @else {
+            Crear Cuenta
+          }
+        </button>
+      </form>
+    </mat-card-content>
+
+    <mat-card-footer class="auth-footer">
+      <p>
+        ¿Ya tienes una cuenta?
+        <a routerLink="/login" class="link">Inicia sesión aquí</a>
+      </p>
+    </mat-card-footer>
+  </mat-card>
+</div>
