@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { StorageService } from './storage.service';
+import { AuditService } from './audit.service';
 
 export interface Orden {
   id_orden: number;
@@ -19,7 +20,10 @@ export class OrdersService {
   private readonly ORDERS_KEY = 'andina_trading_ordenes';
   private orderIdCounter = 1;
 
-  constructor(private storageService: StorageService) {
+  constructor(
+    private storageService: StorageService,
+    private auditService: AuditService
+  ) {
     // Inicializar contador basado en órdenes existentes
     this.initializeCounter();
   }
@@ -59,6 +63,9 @@ export class OrdersService {
     const orders = this.getOrders();
     orders.push(nuevaOrden);
     this.saveOrders(orders);
+
+    // Registrar en auditoría
+    this.auditService.log('CREAR_ORDEN', `Orden #${nuevaOrden.id_orden} - ${tipo.toUpperCase()}: ${cantidad} acciones de ${id_accion} a $${precio.toFixed(2)}`);
 
     return nuevaOrden;
   }

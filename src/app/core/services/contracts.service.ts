@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { StorageService } from './storage.service';
+import { AuditService } from './audit.service';
 
 export interface Contrato {
   id_contrato: number;
@@ -16,7 +17,10 @@ export class ContractsService {
   private readonly CONTRACTS_KEY = 'andina_trading_contratos';
   private contractIdCounter = 1;
 
-  constructor(private storageService: StorageService) {
+  constructor(
+    private storageService: StorageService,
+    private auditService: AuditService
+  ) {
     this.initializeCounter();
   }
 
@@ -44,6 +48,9 @@ export class ContractsService {
     const contracts = this.getContracts();
     contracts.push(nuevoContrato);
     this.saveContracts(contracts);
+
+    // Registrar en auditoría
+    this.auditService.log('CREAR_CONTRATO', `Contrato #${nuevoContrato.id_contrato} creado - Inversionista: ${id_inversionista}, Comisionista: ${id_comisionista}`);
 
     return nuevoContrato;
   }

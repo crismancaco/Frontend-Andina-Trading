@@ -176,7 +176,7 @@ export interface User {
   email: string;
   telefono: string;
   direccion: string;
-  tipo: 'inversionista' | 'comisionista';
+  tipo: 'inversionista' | 'comisionista' | 'admin';
   password: string; // En producción, esto NO debería guardarse en texto plano
   fecha_registro: string;
 }

@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { StorageService } from './storage.service';
+import { AuditService } from './audit.service';
 
 export interface Recomendacion {
   id_recomendacion: number;
@@ -22,7 +23,10 @@ export class RecommendationsService {
   private readonly RECOMMENDATIONS_KEY = 'andina_trading_recomendaciones';
   private recommendationIdCounter = 1;
 
-  constructor(private storageService: StorageService) {
+  constructor(
+    private storageService: StorageService,
+    private auditService: AuditService
+  ) {
     this.initializeCounter();
   }
 
@@ -65,6 +69,9 @@ export class RecommendationsService {
     recommendations.push(nuevaRecomendacion);
     this.saveRecommendations(recommendations);
 
+    // Registrar en auditoría
+    this.auditService.log('CREAR_RECOMENDACION', `Recomendación #${nuevaRecomendacion.id_recomendacion} creada por ${nombre_comisionista}: ${cantidad} acciones de ${id_accion} a $${precio.toFixed(2)}`);
+
     return nuevaRecomendacion;
   }
 
@@ -104,6 +111,7 @@ export class RecommendationsService {
    */
   deleteRecommendation(id_recomendacion: number): boolean {
     const recommendations = this.getRecommendations();
+    const recomendacionAEliminar = recommendations.find(r => r.id_recomendacion === id_recomendacion);
     const filteredRecommendations = recommendations.filter(r => r.id_recomendacion !== id_recomendacion);
     
     if (filteredRecommendations.length === recommendations.length) {
@@ -111,6 +119,12 @@ export class RecommendationsService {
     }
 
     this.saveRecommendations(filteredRecommendations);
+    
+    // Registrar en auditoría
+    if (recomendacionAEliminar) {
+      this.auditService.log('ELIMINAR_RECOMENDACION', `Recomendación #${id_recomendacion} eliminada: ${recomendacionAEliminar.id_accion} - ${recomendacionAEliminar.nombre_accion}`);
+    }
+    
     return true;
   }
 

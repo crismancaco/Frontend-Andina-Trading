@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
 import { StorageService, User } from './storage.service';
+import { AuditService } from './audit.service';
 
 @Injectable({
   providedIn: 'root'
@@ -8,7 +9,8 @@ import { StorageService, User } from './storage.service';
 export class AuthService {
   constructor(
     private storageService: StorageService,
-    private router: Router
+    private router: Router,
+    private auditService: AuditService
   ) {}
 
   /**
@@ -36,6 +38,9 @@ export class AuthService {
       // Guardar usuario
       this.storageService.saveUser(newUser);
 
+      // Registrar en auditoría
+      this.auditService.log('REGISTRO_USUARIO', `Usuario registrado: ${newUser.email} (${newUser.tipo})`);
+
       return {
         success: true,
         message: 'Usuario registrado exitosamente'
@@ -54,6 +59,32 @@ export class AuthService {
    */
   login(email: string, password: string): { success: boolean; message: string; user?: User } {
     try {
+      // Verificar si es el admin
+      if (email.toLowerCase() === 'admin@gmail.com' && password === '123456') {
+        const adminUser: User = {
+          id: 'admin-001',
+          nombre: 'Administrador',
+          email: 'admin@gmail.com',
+          telefono: 'N/A',
+          direccion: 'N/A',
+          tipo: 'admin',
+          password: '123456',
+          fecha_registro: new Date().toISOString()
+        };
+
+        // Guardar usuario en sesión
+        this.storageService.setCurrentUser(adminUser);
+
+        // Registrar en auditoría
+        this.auditService.log('LOGIN', `Admin inició sesión: ${adminUser.email}`);
+
+        return {
+          success: true,
+          message: 'Inicio de sesión exitoso',
+          user: adminUser
+        };
+      }
+
       const user = this.storageService.getUserByEmail(email);
 
       if (!user) {
@@ -73,6 +104,9 @@ export class AuthService {
       // Guardar usuario en sesión
       this.storageService.setCurrentUser(user);
 
+      // Registrar en auditoría
+      this.auditService.log('LOGIN', `Usuario inició sesión: ${user.email} (${user.tipo})`);
+
       return {
         success: true,
         message: 'Inicio de sesión exitoso',
@@ -91,6 +125,11 @@ export class AuthService {
    * Cierra la sesión del usuario actual
    */
   logout(): void {
+    const currentUser = this.storageService.getCurrentUser();
+    if (currentUser) {
+      // Registrar en auditoría antes de cerrar sesión
+      this.auditService.log('LOGOUT', `Usuario cerró sesión: ${currentUser.email}`);
+    }
     this.storageService.clearCurrentUser();
     this.router.navigate(['/login']);
   }
@@ -141,7 +180,7 @@ export class AuthService {
    * Genera un ID único para el usuario
    */
   private generateId(): string {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    return Date.now().toString(36) + Math.random().toString(36).substring(2);
   }
 }
 

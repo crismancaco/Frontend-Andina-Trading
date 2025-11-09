@@ -1,4 +1,4 @@
-import { Component, OnInit, AfterViewInit, ViewChild, ElementRef, OnDestroy } from '@angular/core';
+import { Component, OnInit, AfterViewInit, ViewChild, ElementRef, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
@@ -17,7 +17,8 @@ import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { FormsModule } from '@angular/forms';
+import { MatDialogModule, MatDialog } from '@angular/material/dialog';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import {
   Chart,
   LineController,
@@ -34,17 +35,11 @@ import { User, StorageService } from '../core/services/storage.service';
 import { OrdersService, Orden } from '../core/services/orders.service';
 import { ContractsService, Contrato } from '../core/services/contracts.service';
 import { RecommendationsService, Recomendacion } from '../core/services/recommendations.service';
+import { AuditService, AuditLog } from '../core/services/audit.service';
+import { StocksService, Stock } from '../core/services/stocks.service';
 import { jsPDF } from 'jspdf';
 
-interface Stock {
-  symbol: string;
-  name: string;
-  country: 'Colombia' | 'Ecuador' | 'Perú';
-  price: number;
-  change: number;
-  changePercent: number;
-  volume: number;
-}
+// Stock interface ahora está en stocks.service.ts
 
 // Registrar componentes de Chart.js
 Chart.register(
@@ -77,7 +72,9 @@ Chart.register(
     MatSnackBarModule,
     MatTableModule,
     MatTabsModule,
-    MatTooltipModule
+    MatTooltipModule,
+    MatDialogModule,
+    ReactiveFormsModule
   ],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.css'
@@ -87,11 +84,24 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   currentUser: User | null = null;
   isComisionista: boolean = false;
+  isAdmin: boolean = false;
+  isInversionista: boolean = false;
   
   // Datos para comisionista
   contracts: Contrato[] = [];
   displayedColumns: string[] = ['id', 'fecha', 'inversionista', 'accion', 'cantidad', 'total', 'acciones'];
   contractDetailsMap: Map<number, any> = new Map();
+  
+  // Datos para admin
+  users: User[] = [];
+  displayedUserColumns: string[] = ['id', 'nombre', 'email', 'telefono', 'tipo', 'fecha_registro', 'acciones'];
+  editingUser: User | null = null;
+  userForm: FormGroup | null = null;
+  
+  // Datos para auditoría
+  auditLogs: AuditLog[] = [];
+  displayedAuditColumns: string[] = ['fecha', 'usuario', 'accion', 'detalles'];
+  selectedAuditTab: number = 0;
   
   // Recomendaciones para accionistas
   recomendaciones: Recomendacion[] = [];
@@ -100,6 +110,12 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   // Recomendaciones creadas por el comisionista
   recomendacionesCreadas: Recomendacion[] = [];
   selectedTabIndex: number = 0;
+  
+  // Datos para CRUD de acciones (comisionistas e inversionistas)
+  stocksList: Stock[] = [];
+  displayedStockColumns: string[] = ['symbol', 'name', 'country', 'price', 'change', 'changePercent', 'volume', 'acciones'];
+  editingStock: Stock | null = null;
+  stockForm: FormGroup | null = null;
 
   onTabChange(index: number): void {
     this.selectedTabIndex = index;
@@ -124,6 +140,9 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   
   private lineChart?: Chart<'line'>;
   private routerSubscription?: Subscription;
+  private priceUpdateInterval?: ReturnType<typeof setInterval>; // Intervalo para actualizar precios cada 30 segundos
+  private chartHistoricalData: number[] = []; // Almacenar datos históricos del gráfico
+  private chartLabels: string[] = []; // Almacenar etiquetas del gráfico
 
   selectedStock: Stock | null = null;
   selectedCountry: string = 'all';
@@ -144,34 +163,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   // Compras realizadas (solo para inversionistas)
   purchases: Orden[] = [];
 
-  stocks: Stock[] = [
-    // Colombia - BVC
-    { symbol: 'ECOPETROL', name: 'Ecopetrol S.A.', country: 'Colombia', price: 2450.50, change: 25.30, changePercent: 1.04, volume: 1250000 },
-    { symbol: 'GRUPO_SURA', name: 'Grupo de Inversiones Sura', country: 'Colombia', price: 18200.00, change: -150.00, changePercent: -0.82, volume: 850000 },
-    { symbol: 'BANCOLOMBIA', name: 'Bancolombia S.A.', country: 'Colombia', price: 32450.00, change: 520.00, changePercent: 1.63, volume: 2100000 },
-    { symbol: 'GRUPO_AVAL', name: 'Grupo Aval Acciones y Valores', country: 'Colombia', price: 980.00, change: 15.50, changePercent: 1.61, volume: 1850000 },
-    { symbol: 'CEMARGOS', name: 'Cementos Argos S.A.', country: 'Colombia', price: 8920.00, change: -120.00, changePercent: -1.33, volume: 650000 },
-    { symbol: 'EXITO', name: 'Grupo Éxito', country: 'Colombia', price: 3450.00, change: 45.00, changePercent: 1.32, volume: 420000 },
-    { symbol: 'NUTRESA', name: 'Grupo Nutresa', country: 'Colombia', price: 45600.00, change: 380.00, changePercent: 0.84, volume: 320000 },
-    { symbol: 'ISA', name: 'Interconexión Eléctrica S.A.', country: 'Colombia', price: 12500.00, change: 180.00, changePercent: 1.46, volume: 580000 },
-    
-    // Ecuador
-    { symbol: 'BANCO_PICHINCHA', name: 'Banco Pichincha', country: 'Ecuador', price: 45.80, change: 0.65, changePercent: 1.44, volume: 850000 },
-    { symbol: 'BANCO_GUAYAQUIL', name: 'Banco de Guayaquil', country: 'Ecuador', price: 52.30, change: -0.45, changePercent: -0.85, volume: 420000 },
-    { symbol: 'PRODUBANCO', name: 'Produbanco', country: 'Ecuador', price: 38.90, change: 0.30, changePercent: 0.78, volume: 280000 },
-    { symbol: 'BANCO_BOLIVARIANO', name: 'Banco Bolivariano', country: 'Ecuador', price: 41.20, change: 0.25, changePercent: 0.61, volume: 190000 },
-    { symbol: 'BANCO_INTERNACIONAL', name: 'Banco Internacional', country: 'Ecuador', price: 35.60, change: -0.20, changePercent: -0.56, volume: 150000 },
-    
-    // Perú - BVL
-    { symbol: 'CREDICORP', name: 'Credicorp Ltd.', country: 'Perú', price: 145.80, change: 2.30, changePercent: 1.60, volume: 980000 },
-    { symbol: 'SOUTHERN', name: 'Southern Copper Corporation', country: 'Perú', price: 68.50, change: -0.75, changePercent: -1.08, volume: 1250000 },
-    { symbol: 'CEMENTOS_LIMA', name: 'Cementos Lima S.A.A.', country: 'Perú', price: 12.40, change: 0.15, changePercent: 1.22, volume: 850000 },
-    { symbol: 'ALICORP', name: 'Alicorp S.A.A.', country: 'Perú', price: 8.90, change: 0.10, changePercent: 1.14, volume: 650000 },
-    { symbol: 'BBVA', name: 'BBVA Perú', country: 'Perú', price: 2.85, change: 0.03, changePercent: 1.06, volume: 2100000 },
-    { symbol: 'INTERCORP', name: 'Intercorp Financial Services', country: 'Perú', price: 42.30, change: 0.65, changePercent: 1.56, volume: 780000 },
-    { symbol: 'BACKUS', name: 'Unión de Cervecerías Peruanas Backus', country: 'Perú', price: 18.50, change: -0.20, changePercent: -1.07, volume: 520000 },
-    { symbol: 'VOLCAN', name: 'Compañía Minera Volcan', country: 'Perú', price: 6.80, change: 0.05, changePercent: 0.74, volume: 950000 }
-  ];
+  // Stocks ahora se obtienen del servicio
+  get stocks(): Stock[] {
+    return this.stocksService.getStocks();
+  }
 
   get filteredStocks(): Stock[] {
     if (this.selectedCountry === 'all') {
@@ -187,7 +182,12 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     private contractsService: ContractsService,
     private storageService: StorageService,
     private recommendationsService: RecommendationsService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private dialog: MatDialog,
+    private fb: FormBuilder,
+    private auditService: AuditService,
+    private stocksService: StocksService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -197,8 +197,19 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     
-    // Verificar si es comisionista
+    // Verificar tipo de usuario
     this.isComisionista = this.currentUser.tipo === 'comisionista';
+    this.isAdmin = this.currentUser.tipo === 'admin';
+    this.isInversionista = this.currentUser.tipo === 'inversionista';
+    
+    if (this.isAdmin) {
+      // Cargar todos los usuarios
+      this.loadUsers();
+      // Cargar logs de auditoría
+      this.loadAuditLogs();
+      // Cargar acciones para admin
+      this.loadStocks();
+    }
     
     if (this.isComisionista) {
       // Cargar todos los contratos
@@ -214,6 +225,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         this.selectedStock = ecopetrol;
         this.precioCompra = ecopetrol.price;
         this.calculateTotal();
+        // Iniciar actualización automática de precios
+        setTimeout(() => {
+          this.startPriceUpdates();
+        }, 1000);
       }
       
       // Escuchar cambios de ruta para actualizar cuando se vuelva al dashboard
@@ -225,7 +240,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
             this.loadMisRecomendaciones();
           }
         });
-    } else {
+    } else if (this.isInversionista) {
       // Cargar recomendaciones para accionistas
       this.loadRecommendations();
       
@@ -235,6 +250,10 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         this.selectedStock = ecopetrol;
         this.precioCompra = ecopetrol.price;
         this.calculateTotal();
+        // Iniciar actualización automática de precios
+        setTimeout(() => {
+          this.startPriceUpdates();
+        }, 1000);
       }
 
       // Calcular estadísticas iniciales
@@ -260,30 +279,36 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.routerSubscription) {
       this.routerSubscription.unsubscribe();
     }
+    // Limpiar intervalo de actualización de precios
+    if (this.priceUpdateInterval) {
+      clearInterval(this.priceUpdateInterval);
+    }
   }
 
   ngAfterViewInit(): void {
-    // Inicializar gráfico para ambos roles (comisionista y accionista)
-    // Esperar un tick para asegurar que los elementos estén renderizados
-    setTimeout(() => {
-      this.initLineChart();
-      // Si hay una acción seleccionada, actualizar el gráfico
-      if (this.selectedStock) {
-        this.updateLineChart();
-      }
-    }, 100);
-
-    // Si es comisionista, inicializar gráfico cuando cambie de tab
-    if (this.isComisionista) {
-      // Escuchar cambios en el tab seleccionado
+    // Inicializar gráfico solo para comisionista e inversionista (no para admin)
+    if (this.isComisionista || this.isInversionista) {
+      // Esperar un tick para asegurar que los elementos estén renderizados
       setTimeout(() => {
-        if (this.selectedTabIndex === 1 && this.lineChartCanvas) {
-          this.initLineChart();
-          if (this.selectedStock) {
-            this.updateLineChart();
-          }
+        this.initLineChart();
+        // Si hay una acción seleccionada, actualizar el gráfico
+        if (this.selectedStock) {
+          this.updateLineChart();
         }
-      }, 200);
+      }, 100);
+
+      // Si es comisionista, inicializar gráfico cuando cambie de tab
+      if (this.isComisionista) {
+        // Escuchar cambios en el tab seleccionado
+        setTimeout(() => {
+          if (this.selectedTabIndex === 1 && this.lineChartCanvas) {
+            this.initLineChart();
+            if (this.selectedStock) {
+              this.updateLineChart();
+            }
+          }
+        }, 200);
+      }
     }
   }
 
@@ -291,7 +316,12 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.selectedStock = stock;
     this.precioCompra = stock.price;
     this.calculateTotal();
-    this.updateLineChart();
+    // Limpiar datos históricos al cambiar de acción
+    this.chartHistoricalData = [];
+    this.chartLabels = [];
+    this.updateLineChart(false);
+    // Iniciar actualización automática de precios
+    this.startPriceUpdates();
   }
 
   calculateTotal(): void {
@@ -511,10 +541,20 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.selectedStock && this.selectedCountry !== 'all') {
       if (this.selectedStock.country !== this.selectedCountry) {
         this.selectedStock = null;
+        // Detener actualización de precios si no hay acción seleccionada
+        if (this.priceUpdateInterval) {
+          clearInterval(this.priceUpdateInterval);
+          this.priceUpdateInterval = undefined;
+        }
       }
     }
     if (!this.selectedStock) {
       this.updateLineChart();
+      // Detener actualización de precios si no hay acción seleccionada
+      if (this.priceUpdateInterval) {
+        clearInterval(this.priceUpdateInterval);
+        this.priceUpdateInterval = undefined;
+      }
     }
   }
 
@@ -527,35 +567,48 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.updateLineChart();
   }
 
-  private updateLineChart(): void {
+  private updateLineChart(addNewPoint: boolean = false): void {
     if (!this.lineChartCanvas) return;
 
     const ctx = this.lineChartCanvas.nativeElement.getContext('2d');
     if (!ctx) return;
-
-    // Destruir gráfico anterior si existe
-    if (this.lineChart) {
-      this.lineChart.destroy();
-    }
 
     let datasets: any[] = [];
     let labels = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
     let title = 'Evolución de Precios de Acciones';
 
     if (this.selectedStock) {
-      // Mostrar solo la acción seleccionada
-      const days = 12;
-      const data: number[] = [];
-      const basePrice = this.selectedStock.price;
-      
-      for (let i = 0; i < days; i++) {
-        const variation = (Math.random() - 0.5) * 0.15;
-        const monthPrice = basePrice * (1 + variation * (i / days));
-        data.push(Number(monthPrice.toFixed(2)));
+      // Si es la primera vez o no hay datos históricos, inicializar
+      if (!addNewPoint || this.chartHistoricalData.length === 0) {
+        const days = 12;
+        this.chartHistoricalData = [];
+        this.chartLabels = [];
+        const basePrice = this.selectedStock.price;
+        
+        for (let i = 0; i < days; i++) {
+          const variation = (Math.random() - 0.5) * 0.15;
+          const monthPrice = basePrice * (1 + variation * (i / days));
+          this.chartHistoricalData.push(Number(monthPrice.toFixed(2)));
+          this.chartLabels.push(labels[i]);
+        }
+      } else if (addNewPoint) {
+        // Agregar nuevo punto al final con el precio actual
+        this.chartHistoricalData.push(Number(this.selectedStock.price.toFixed(2)));
+        
+        // Generar etiqueta de tiempo para el nuevo punto
+        const now = new Date();
+        const timeLabel = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        this.chartLabels.push(timeLabel);
+        
+        // Limitar a los últimos 20 puntos para mantener el gráfico legible
+        if (this.chartHistoricalData.length > 20) {
+          this.chartHistoricalData.shift();
+          this.chartLabels.shift();
+        }
       }
 
       datasets = [{
-        data: data,
+        data: [...this.chartHistoricalData],
         label: `${this.selectedStock.symbol} - ${this.selectedStock.name}`,
         borderColor: this.selectedStock.changePercent >= 0 ? '#38a169' : '#e53e3e',
         backgroundColor: this.selectedStock.changePercent >= 0 
@@ -564,7 +617,8 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         tension: 0.4,
         fill: true
       }];
-      title = `${this.selectedStock.symbol} - Últimos 12 meses`;
+      labels = [...this.chartLabels];
+      title = `${this.selectedStock.symbol} - Evolución en Tiempo Real`;
     } else {
       // Mostrar gráfico por defecto con múltiples acciones
       datasets = [
@@ -595,40 +649,62 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       ];
     }
 
-    this.lineChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: datasets
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: true,
-            position: 'top'
-          },
-          title: {
-            display: true,
-            text: title
-          }
+    // Si el gráfico ya existe y solo estamos agregando un punto, actualizarlo
+    if (this.lineChart && addNewPoint) {
+      this.lineChart.data.labels = labels;
+      this.lineChart.data.datasets[0].data = [...this.chartHistoricalData];
+      // Actualizar el color de la línea según el cambio porcentual
+      if (this.selectedStock) {
+        this.lineChart.data.datasets[0].borderColor = this.selectedStock.changePercent >= 0 ? '#38a169' : '#e53e3e';
+        this.lineChart.data.datasets[0].backgroundColor = this.selectedStock.changePercent >= 0 
+          ? 'rgba(56, 161, 105, 0.2)' 
+          : 'rgba(229, 62, 62, 0.2)';
+      }
+      this.lineChart.update('none'); // 'none' para animación suave
+    } else {
+      // Destruir gráfico anterior si existe
+      if (this.lineChart) {
+        this.lineChart.destroy();
+      }
+
+      this.lineChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: datasets
         },
-        scales: {
-          y: {
-            beginAtZero: false,
-            ticks: {
-              callback: function(value) {
-                if (typeof value === 'number') {
-                  return '$' + value.toFixed(2);
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: {
+            duration: 300
+          },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top'
+            },
+            title: {
+              display: true,
+              text: title
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: false,
+              ticks: {
+                callback: function(value) {
+                  if (typeof value === 'number') {
+                    return '$' + value.toFixed(2);
+                  }
+                  return '$' + value;
                 }
-                return '$' + value;
               }
             }
           }
         }
-      }
-    });
+      });
+    }
   }
 
 
@@ -714,7 +790,12 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       this.precioCompra = recomendacion.precio;
       this.cantidadCompra = recomendacion.cantidad;
       this.calculateTotal();
-      this.updateLineChart();
+      // Limpiar datos históricos al aplicar recomendación
+      this.chartHistoricalData = [];
+      this.chartLabels = [];
+      this.updateLineChart(false);
+      // Iniciar actualización automática de precios
+      this.startPriceUpdates();
       
       // Scroll hasta el panel de compra
       setTimeout(() => {
@@ -924,12 +1005,349 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const fileName = `Contrato_${details.symbol || 'N/A'}_${contrato.id_contrato}_Firmado.pdf`;
     doc.save(fileName);
     
+    // Registrar en auditoría
+    this.auditService.log('FIRMAR_CONTRATO', `Contrato #${contrato.id_contrato} firmado y descargado - Acción: ${details.symbol || 'N/A'}, Inversionista: ${details.investorName || 'N/A'}`);
+    
     // Mostrar mensaje de confirmación
     this.snackBar.open('Contrato firmado y descargado exitosamente', 'Cerrar', {
       duration: 3000,
       horizontalPosition: 'center',
       verticalPosition: 'top'
     });
+  }
+
+  // Métodos para admin - CRUD de usuarios
+  loadUsers(): void {
+    this.users = this.storageService.getUsers();
+    // Filtrar el usuario admin del listado
+    this.users = this.users.filter(u => u.tipo !== 'admin');
+    // Ordenar por fecha de registro más reciente primero
+    this.users.sort((a, b) => 
+      new Date(b.fecha_registro).getTime() - new Date(a.fecha_registro).getTime()
+    );
+  }
+
+  openUserDialog(user?: User): void {
+    const isEdit = !!user;
+    this.editingUser = user || null;
+
+    this.userForm = this.fb.group({
+      nombre: [user?.nombre || '', [Validators.required]],
+      email: [user?.email || '', [Validators.required, Validators.email]],
+      telefono: [user?.telefono || '', [Validators.required]],
+      direccion: [user?.direccion || '', [Validators.required]],
+      tipo: [user?.tipo || 'inversionista', [Validators.required]],
+      password: [user?.password || '', [Validators.required, Validators.minLength(6)]]
+    });
+
+    // Si es edición, hacer el email readonly
+    if (isEdit) {
+      this.userForm.get('email')?.disable();
+    }
+  }
+
+  saveUser(): void {
+    if (!this.userForm || this.userForm.invalid) {
+      this.snackBar.open('Por favor, completa todos los campos correctamente', 'Cerrar', {
+        duration: 3000
+      });
+      return;
+    }
+
+    const formValue = this.userForm.getRawValue();
+    
+    if (this.editingUser) {
+      // Actualizar usuario existente
+      const updatedUser: User = {
+        ...this.editingUser,
+        nombre: formValue.nombre,
+        telefono: formValue.telefono,
+        direccion: formValue.direccion,
+        tipo: formValue.tipo,
+        password: formValue.password
+      };
+      
+      this.storageService.saveUser(updatedUser);
+      
+      // Registrar en auditoría
+      this.auditService.log('ACTUALIZAR_USUARIO', `Usuario actualizado: ${updatedUser.email} (${updatedUser.tipo})`);
+      
+      this.snackBar.open('Usuario actualizado exitosamente', 'Cerrar', {
+        duration: 3000
+      });
+    } else {
+      // Crear nuevo usuario
+      const newUser: User = {
+        id: this.generateUserId(),
+        nombre: formValue.nombre,
+        email: formValue.email,
+        telefono: formValue.telefono,
+        direccion: formValue.direccion,
+        tipo: formValue.tipo,
+        password: formValue.password,
+        fecha_registro: new Date().toISOString()
+      };
+
+      // Verificar si el email ya existe
+      const existingUser = this.storageService.getUserByEmail(formValue.email);
+      if (existingUser) {
+        this.snackBar.open('Este correo electrónico ya está registrado', 'Cerrar', {
+          duration: 3000
+        });
+        return;
+      }
+
+      this.storageService.saveUser(newUser);
+      
+      // Registrar en auditoría
+      this.auditService.log('CREAR_USUARIO', `Usuario creado: ${newUser.email} (${newUser.tipo})`);
+      
+      this.snackBar.open('Usuario creado exitosamente', 'Cerrar', {
+        duration: 3000
+      });
+    }
+
+    this.closeUserDialog();
+    this.loadUsers();
+    this.loadAuditLogs();
+  }
+
+  deleteUser(user: User): void {
+    if (confirm(`¿Está seguro de que desea eliminar al usuario ${user.nombre}?`)) {
+      this.storageService.deleteUser(user.email);
+      
+      // Registrar en auditoría
+      this.auditService.log('ELIMINAR_USUARIO', `Usuario eliminado: ${user.email} (${user.tipo})`);
+      
+      this.snackBar.open('Usuario eliminado exitosamente', 'Cerrar', {
+        duration: 3000
+      });
+      this.loadUsers();
+      this.loadAuditLogs();
+    }
+  }
+
+  closeUserDialog(): void {
+    this.editingUser = null;
+    this.userForm = null;
+  }
+
+  private generateUserId(): string {
+    return Date.now().toString(36) + Math.random().toString(36).substring(2);
+  }
+
+  // Métodos para auditoría
+  loadAuditLogs(): void {
+    this.auditLogs = this.auditService.getLogs();
+  }
+
+  onAuditTabChange(index: number): void {
+    this.selectedAuditTab = index;
+    // Cargar logs cuando se cambia a la pestaña de auditoría (índice 1)
+    if (index === 1) {
+      this.loadAuditLogs();
+    }
+  }
+
+  // Métodos para CRUD de acciones (comisionistas e inversionistas)
+  loadStocks(): void {
+    this.stocksList = this.stocksService.getStocks();
+    // Ordenar por símbolo
+    this.stocksList.sort((a, b) => a.symbol.localeCompare(b.symbol));
+  }
+
+  openStockDialog(stock?: Stock): void {
+    const isEdit = !!stock;
+    this.editingStock = stock || null;
+
+    this.stockForm = this.fb.group({
+      symbol: [stock?.symbol || '', [Validators.required, Validators.pattern(/^[A-Z0-9_]+$/)]],
+      name: [stock?.name || '', [Validators.required]],
+      country: [stock?.country || 'Colombia', [Validators.required]],
+      price: [stock?.price || 0, [Validators.required, Validators.min(0.01)]],
+      change: [stock?.change || 0, [Validators.required]],
+      changePercent: [stock?.changePercent || 0, [Validators.required]],
+      volume: [stock?.volume || 0, [Validators.required, Validators.min(0)]]
+    });
+
+    // Si es edición, hacer el símbolo readonly
+    if (isEdit) {
+      this.stockForm.get('symbol')?.disable();
+    }
+  }
+
+  saveStock(): void {
+    if (!this.stockForm || this.stockForm.invalid) {
+      this.snackBar.open('Por favor, completa todos los campos correctamente', 'Cerrar', {
+        duration: 3000
+      });
+      return;
+    }
+
+    const formValue = this.stockForm.getRawValue();
+    
+    if (this.editingStock) {
+      // Actualizar acción existente
+      const updatedStock: Stock = {
+        symbol: this.editingStock.symbol, // Mantener el símbolo original
+        name: formValue.name,
+        country: formValue.country,
+        price: formValue.price,
+        change: formValue.change,
+        changePercent: formValue.changePercent,
+        volume: formValue.volume
+      };
+      
+      const success = this.stocksService.updateStock(this.editingStock.symbol, updatedStock);
+      
+      if (success) {
+        this.snackBar.open('Acción actualizada exitosamente', 'Cerrar', {
+          duration: 3000
+        });
+      } else {
+        this.snackBar.open('Error al actualizar la acción', 'Cerrar', {
+          duration: 3000
+        });
+        return;
+      }
+    } else {
+      // Crear nueva acción
+      const newStock: Stock = {
+        symbol: formValue.symbol.toUpperCase(),
+        name: formValue.name,
+        country: formValue.country,
+        price: formValue.price,
+        change: formValue.change,
+        changePercent: formValue.changePercent,
+        volume: formValue.volume
+      };
+
+      // Verificar si el símbolo ya existe
+      const existingStock = this.stocksService.getStockBySymbol(newStock.symbol);
+      if (existingStock) {
+        this.snackBar.open('Este símbolo de acción ya existe', 'Cerrar', {
+          duration: 3000
+        });
+        return;
+      }
+
+      const success = this.stocksService.createStock(newStock);
+      
+      if (success) {
+        this.snackBar.open('Acción creada exitosamente', 'Cerrar', {
+          duration: 3000
+        });
+      } else {
+        this.snackBar.open('Error al crear la acción. El símbolo puede ya existir', 'Cerrar', {
+          duration: 3000
+        });
+        return;
+      }
+    }
+
+    this.closeStockDialog();
+    this.loadStocks();
+    // Recargar logs de auditoría para mostrar la operación
+    if (this.isAdmin) {
+      this.loadAuditLogs();
+    }
+    // Actualizar la lista de stocks disponible
+    this.cdr.detectChanges();
+  }
+
+  deleteStock(stock: Stock): void {
+    if (confirm(`¿Está seguro de que desea eliminar la acción ${stock.symbol} - ${stock.name}?`)) {
+      const success = this.stocksService.deleteStock(stock.symbol);
+      
+      if (success) {
+        this.snackBar.open('Acción eliminada exitosamente', 'Cerrar', {
+          duration: 3000
+        });
+        this.loadStocks();
+        // Recargar logs de auditoría para mostrar la operación
+        if (this.isAdmin) {
+          this.loadAuditLogs();
+        }
+        // Actualizar la lista de stocks disponible
+        this.cdr.detectChanges();
+      } else {
+        this.snackBar.open('Error al eliminar la acción', 'Cerrar', {
+          duration: 3000
+        });
+        // Recargar logs de auditoría incluso si hay error (para ver el intento fallido)
+        if (this.isAdmin) {
+          this.loadAuditLogs();
+        }
+      }
+    }
+  }
+
+  closeStockDialog(): void {
+    this.editingStock = null;
+    this.stockForm = null;
+  }
+
+  /**
+   * Inicia la actualización automática de precios cada 30 segundos
+   */
+  private startPriceUpdates(): void {
+    // Limpiar intervalo anterior si existe
+    if (this.priceUpdateInterval) {
+      clearInterval(this.priceUpdateInterval);
+    }
+
+    // Actualizar precio cada 30 segundos (30000 ms)
+    this.priceUpdateInterval = setInterval(() => {
+      if (this.selectedStock) {
+        this.updateStockPrice();
+      }
+    }, 3000);
+  }
+
+  /**
+   * Actualiza el precio de la acción seleccionada simulando movimiento del mercado
+   */
+  private updateStockPrice(): void {
+    if (!this.selectedStock) return;
+
+    const stock = this.stocksService.getStockBySymbol(this.selectedStock.symbol);
+    if (!stock) return;
+
+    // Simular variación de precio aleatoria (entre -2% y +2%)
+    const variationPercent = (Math.random() - 0.5) * 4; // -2% a +2%
+    const oldPrice = stock.price;
+    const newPrice = Math.max(0.01, oldPrice * (1 + variationPercent / 100));
+    
+    // Calcular el cambio en valor absoluto
+    const priceChange = newPrice - oldPrice;
+    const changePercent = (priceChange / oldPrice) * 100;
+
+    // Actualizar el stock en el servicio
+    const updatedStock: Stock = {
+      ...stock,
+      price: Number(newPrice.toFixed(2)),
+      change: Number(priceChange.toFixed(2)),
+      changePercent: Number(changePercent.toFixed(2))
+    };
+
+    this.stocksService.updateStock(stock.symbol, updatedStock);
+
+    // Actualizar la acción seleccionada si es la misma
+    if (this.selectedStock.symbol === stock.symbol) {
+      this.selectedStock = updatedStock;
+      this.precioCompra = updatedStock.price;
+      this.calculateTotal();
+      // Agregar nuevo punto al gráfico sin regenerarlo completamente
+      this.updateLineChart(true);
+      
+      // Forzar detección de cambios
+      this.cdr.detectChanges();
+    }
+
+    // Si es inversionista, actualizar estadísticas para reflejar ganancias/pérdidas
+    if (this.isInversionista) {
+      this.updateStats();
+    }
   }
 }
 

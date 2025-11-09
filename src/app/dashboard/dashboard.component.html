@@ -28,9 +28,479 @@
 
   <!-- Main Content -->
   <div class="dashboard-content">
+    <!-- Vista para Admin -->
+    <div *ngIf="isAdmin" class="admin-view">
+      <!-- Tabs para navegar entre Usuarios y Tira Auditora -->
+      <mat-tab-group [(selectedIndex)]="selectedAuditTab" (selectedIndexChange)="onAuditTabChange($event)" class="admin-tabs">
+        <!-- Tab de Usuarios -->
+        <mat-tab label="Usuarios">
+          <mat-card class="users-card">
+        <mat-card-header>
+          <mat-card-title>
+            Gestión de Usuarios
+          </mat-card-title>
+          <mat-card-subtitle>Administra todos los usuarios registrados en la aplicación</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="users-header">
+            <button 
+              mat-raised-button 
+              color="primary" 
+              (click)="openUserDialog()"
+              class="add-user-button">
+              Nuevo Usuario
+            </button>
+          </div>
+          
+          <div *ngIf="users.length === 0" class="no-users">
+            <p>No hay usuarios registrados</p>
+          </div>
+          
+          <table mat-table [dataSource]="users" class="users-table" *ngIf="users.length > 0">
+            <!-- ID Column -->
+            <ng-container matColumnDef="id">
+              <th mat-header-cell *matHeaderCellDef>ID</th>
+              <td mat-cell *matCellDef="let user">{{ user.id }}</td>
+            </ng-container>
+
+            <!-- Nombre Column -->
+            <ng-container matColumnDef="nombre">
+              <th mat-header-cell *matHeaderCellDef>Nombre</th>
+              <td mat-cell *matCellDef="let user">{{ user.nombre }}</td>
+            </ng-container>
+
+            <!-- Email Column -->
+            <ng-container matColumnDef="email">
+              <th mat-header-cell *matHeaderCellDef>Email</th>
+              <td mat-cell *matCellDef="let user">{{ user.email }}</td>
+            </ng-container>
+
+            <!-- Teléfono Column -->
+            <ng-container matColumnDef="telefono">
+              <th mat-header-cell *matHeaderCellDef>Teléfono</th>
+              <td mat-cell *matCellDef="let user">{{ user.telefono }}</td>
+            </ng-container>
+
+            <!-- Tipo Column -->
+            <ng-container matColumnDef="tipo">
+              <th mat-header-cell *matHeaderCellDef>Tipo</th>
+              <td mat-cell *matCellDef="let user">
+                <mat-chip [ngClass]="'tipo-' + user.tipo">
+                  {{ user.tipo === 'inversionista' ? 'Inversionista' : user.tipo === 'comisionista' ? 'Comisionista' : 'Admin' }}
+                </mat-chip>
+              </td>
+            </ng-container>
+
+            <!-- Fecha Registro Column -->
+            <ng-container matColumnDef="fecha_registro">
+              <th mat-header-cell *matHeaderCellDef>Fecha Registro</th>
+              <td mat-cell *matCellDef="let user">
+                {{ user.fecha_registro | date:'short':'es-ES' }}
+              </td>
+            </ng-container>
+
+            <!-- Acciones Column -->
+            <ng-container matColumnDef="acciones">
+              <th mat-header-cell *matHeaderCellDef>Acciones</th>
+              <td mat-cell *matCellDef="let user">
+                <button 
+                  mat-raised-button 
+                  color="primary" 
+                  (click)="openUserDialog(user)"
+                  class="edit-button"
+                  matTooltip="Editar usuario">
+                  Editar
+                </button>
+                <button 
+                  mat-raised-button 
+                  color="warn" 
+                  (click)="deleteUser(user)"
+                  class="delete-button"
+                  matTooltip="Eliminar usuario">
+                  Eliminar
+                </button>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="displayedUserColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedUserColumns;"></tr>
+          </table>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Dialog para crear/editar usuario -->
+      <div *ngIf="userForm" class="user-dialog-overlay" (click)="closeUserDialog()">
+        <div class="user-dialog-content" (click)="$event.stopPropagation()">
+          <mat-card class="user-dialog-card">
+            <mat-card-header>
+              <mat-card-title>
+                {{ editingUser ? 'Editar Usuario' : 'Nuevo Usuario' }}
+              </mat-card-title>
+            </mat-card-header>
+            <mat-card-content>
+              <form [formGroup]="userForm" class="user-form">
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Nombre</mat-label>
+                  <input matInput formControlName="nombre" placeholder="Nombre completo" />
+                  @if (userForm.get('nombre')?.invalid && userForm.get('nombre')?.touched) {
+                    <mat-error>El nombre es requerido</mat-error>
+                  }
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Email</mat-label>
+                  <input matInput type="email" formControlName="email" placeholder="email@ejemplo.com" />
+                  @if (userForm.get('email')?.invalid && userForm.get('email')?.touched) {
+                    <mat-error>
+                      @if (userForm.get('email')?.errors?.['required']) {
+                        El email es requerido
+                      } @else if (userForm.get('email')?.errors?.['email']) {
+                        Ingresa un email válido
+                      }
+                    </mat-error>
+                  }
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Teléfono</mat-label>
+                  <input matInput formControlName="telefono" placeholder="Teléfono" />
+                  @if (userForm.get('telefono')?.invalid && userForm.get('telefono')?.touched) {
+                    <mat-error>El teléfono es requerido</mat-error>
+                  }
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Dirección</mat-label>
+                  <input matInput formControlName="direccion" placeholder="Dirección" />
+                  @if (userForm.get('direccion')?.invalid && userForm.get('direccion')?.touched) {
+                    <mat-error>La dirección es requerida</mat-error>
+                  }
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Tipo de Usuario</mat-label>
+                  <mat-select formControlName="tipo">
+                    <mat-option value="inversionista">Inversionista</mat-option>
+                    <mat-option value="comisionista">Comisionista</mat-option>
+                  </mat-select>
+                  @if (userForm.get('tipo')?.invalid && userForm.get('tipo')?.touched) {
+                    <mat-error>El tipo es requerido</mat-error>
+                  }
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Contraseña</mat-label>
+                  <input matInput type="password" formControlName="password" placeholder="Mínimo 6 caracteres" />
+                  @if (userForm.get('password')?.invalid && userForm.get('password')?.touched) {
+                    <mat-error>
+                      @if (userForm.get('password')?.errors?.['required']) {
+                        La contraseña es requerida
+                      } @else if (userForm.get('password')?.errors?.['minlength']) {
+                        La contraseña debe tener al menos 6 caracteres
+                      }
+                    </mat-error>
+                  }
+                </mat-form-field>
+
+                <div class="dialog-actions">
+                  <button 
+                    mat-raised-button 
+                    color="primary" 
+                    (click)="saveUser()"
+                    [disabled]="userForm.invalid">
+                    {{ editingUser ? 'Actualizar' : 'Crear' }}
+                  </button>
+                  <button 
+                    mat-button 
+                    (click)="closeUserDialog()">
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </div>
+        </mat-tab>
+
+        <!-- Tab de Gestión de Acciones -->
+        <mat-tab label="Gestión de Acciones">
+          <mat-card class="stocks-management-card">
+            <mat-card-header>
+              <mat-card-title>
+                Gestión de Acciones
+              </mat-card-title>
+              <mat-card-subtitle>Administra todas las acciones disponibles en la aplicación</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <div class="stocks-header">
+                <button 
+                  mat-raised-button 
+                  color="primary" 
+                  (click)="openStockDialog()"
+                  class="add-stock-button">
+                  Nueva Acción
+                </button>
+              </div>
+              
+              <div *ngIf="stocksList.length === 0" class="no-stocks">
+                <p>No hay acciones registradas</p>
+              </div>
+              
+              <table mat-table [dataSource]="stocksList" class="stocks-table" *ngIf="stocksList.length > 0">
+                <!-- Symbol Column -->
+                <ng-container matColumnDef="symbol">
+                  <th mat-header-cell *matHeaderCellDef>Símbolo</th>
+                  <td mat-cell *matCellDef="let stock">{{ stock.symbol }}</td>
+                </ng-container>
+
+                <!-- Name Column -->
+                <ng-container matColumnDef="name">
+                  <th mat-header-cell *matHeaderCellDef>Nombre</th>
+                  <td mat-cell *matCellDef="let stock">{{ stock.name }}</td>
+                </ng-container>
+
+                <!-- Country Column -->
+                <ng-container matColumnDef="country">
+                  <th mat-header-cell *matHeaderCellDef>País</th>
+                  <td mat-cell *matCellDef="let stock">
+                    <mat-chip [ngClass]="'country-' + stock.country.toLowerCase()">
+                      {{ stock.country }}
+                    </mat-chip>
+                  </td>
+                </ng-container>
+
+                <!-- Price Column -->
+                <ng-container matColumnDef="price">
+                  <th mat-header-cell *matHeaderCellDef>Precio</th>
+                  <td mat-cell *matCellDef="let stock">
+                    ${{ stock.price.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                  </td>
+                </ng-container>
+
+                <!-- Change Column -->
+                <ng-container matColumnDef="change">
+                  <th mat-header-cell *matHeaderCellDef>Cambio</th>
+                  <td mat-cell *matCellDef="let stock">
+                    <span [ngClass]="stock.change >= 0 ? 'positive' : 'negative'">
+                      {{ stock.change >= 0 ? '+' : '' }}${{ stock.change.toFixed(2) }}
+                    </span>
+                  </td>
+                </ng-container>
+
+                <!-- Change Percent Column -->
+                <ng-container matColumnDef="changePercent">
+                  <th mat-header-cell *matHeaderCellDef>% Cambio</th>
+                  <td mat-cell *matCellDef="let stock">
+                    <mat-chip [ngClass]="stock.changePercent >= 0 ? 'positive' : 'negative'">
+                      {{ stock.changePercent >= 0 ? '+' : '' }}{{ stock.changePercent.toFixed(2) }}%
+                    </mat-chip>
+                  </td>
+                </ng-container>
+
+                <!-- Volume Column -->
+                <ng-container matColumnDef="volume">
+                  <th mat-header-cell *matHeaderCellDef>Volumen</th>
+                  <td mat-cell *matCellDef="let stock">{{ stock.volume.toLocaleString('es-ES') }}</td>
+                </ng-container>
+
+                <!-- Acciones Column -->
+                <ng-container matColumnDef="acciones">
+                  <th mat-header-cell *matHeaderCellDef>Acciones</th>
+                  <td mat-cell *matCellDef="let stock">
+                    <button 
+                      mat-raised-button 
+                      color="primary" 
+                      (click)="openStockDialog(stock)"
+                      class="edit-button"
+                      matTooltip="Editar acción">
+                      Editar
+                    </button>
+                    <button 
+                      mat-raised-button 
+                      color="warn" 
+                      (click)="deleteStock(stock)"
+                      class="delete-button"
+                      matTooltip="Eliminar acción">
+                      Eliminar
+                    </button>
+                  </td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="displayedStockColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: displayedStockColumns;"></tr>
+              </table>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- Dialog para crear/editar acción -->
+          <div *ngIf="stockForm" class="stock-dialog-overlay" (click)="closeStockDialog()">
+            <div class="stock-dialog-content" (click)="$event.stopPropagation()">
+              <mat-card class="stock-dialog-card">
+                <mat-card-header>
+                  <mat-card-title>
+                    {{ editingStock ? 'Editar Acción' : 'Nueva Acción' }}
+                  </mat-card-title>
+                </mat-card-header>
+                <mat-card-content>
+                  <form [formGroup]="stockForm" class="stock-form">
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>Símbolo</mat-label>
+                      <input matInput formControlName="symbol" placeholder="ECOPETROL" [readonly]="editingStock !== null" />
+                      @if (stockForm.get('symbol')?.invalid && stockForm.get('symbol')?.touched) {
+                        <mat-error>
+                          @if (stockForm.get('symbol')?.errors?.['required']) {
+                            El símbolo es requerido
+                          } @else if (stockForm.get('symbol')?.errors?.['pattern']) {
+                            Solo letras mayúsculas, números y guiones bajos
+                          }
+                        </mat-error>
+                      }
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>Nombre</mat-label>
+                      <input matInput formControlName="name" placeholder="Nombre de la empresa" />
+                      @if (stockForm.get('name')?.invalid && stockForm.get('name')?.touched) {
+                        <mat-error>El nombre es requerido</mat-error>
+                      }
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>País *</mat-label>
+                      <mat-select formControlName="country" placeholder="Seleccione un país">
+                        <mat-option value="Colombia">🇨🇴 Colombia</mat-option>
+                        <mat-option value="Ecuador">🇪🇨 Ecuador</mat-option>
+                        <mat-option value="Perú">🇵🇪 Perú</mat-option>
+                      </mat-select>
+                      @if (stockForm.get('country')?.invalid && stockForm.get('country')?.touched) {
+                        <mat-error>El país es requerido</mat-error>
+                      }
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>Precio</mat-label>
+                      <input matInput type="number" formControlName="price" placeholder="0.00" min="0.01" step="0.01" />
+                      <span matPrefix>$</span>
+                      @if (stockForm.get('price')?.invalid && stockForm.get('price')?.touched) {
+                        <mat-error>
+                          @if (stockForm.get('price')?.errors?.['required']) {
+                            El precio es requerido
+                          } @else if (stockForm.get('price')?.errors?.['min']) {
+                            El precio debe ser mayor a 0
+                          }
+                        </mat-error>
+                      }
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>Cambio</mat-label>
+                      <input matInput type="number" formControlName="change" placeholder="0.00" step="0.01" />
+                      <span matPrefix>$</span>
+                      @if (stockForm.get('change')?.invalid && stockForm.get('change')?.touched) {
+                        <mat-error>El cambio es requerido</mat-error>
+                      }
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>% Cambio</mat-label>
+                      <input matInput type="number" formControlName="changePercent" placeholder="0.00" step="0.01" />
+                      <span matSuffix>%</span>
+                      @if (stockForm.get('changePercent')?.invalid && stockForm.get('changePercent')?.touched) {
+                        <mat-error>El porcentaje de cambio es requerido</mat-error>
+                      }
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>Volumen</mat-label>
+                      <input matInput type="number" formControlName="volume" placeholder="0" min="0" />
+                      @if (stockForm.get('volume')?.invalid && stockForm.get('volume')?.touched) {
+                        <mat-error>
+                          @if (stockForm.get('volume')?.errors?.['required']) {
+                            El volumen es requerido
+                          } @else if (stockForm.get('volume')?.errors?.['min']) {
+                            El volumen debe ser mayor o igual a 0
+                          }
+                        </mat-error>
+                      }
+                    </mat-form-field>
+
+                    <div class="dialog-actions">
+                      <button 
+                        mat-raised-button 
+                        color="primary" 
+                        (click)="saveStock()"
+                        [disabled]="stockForm.invalid">
+                        {{ editingStock ? 'Actualizar' : 'Crear' }}
+                      </button>
+                      <button 
+                        mat-button 
+                        (click)="closeStockDialog()">
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
+                </mat-card-content>
+              </mat-card>
+            </div>
+          </div>
+        </mat-tab>
+
+        <!-- Tab de Tira Auditora -->
+        <mat-tab label="Tira Auditora">
+          <mat-card class="audit-card">
+            <mat-card-header>
+              <mat-card-title>
+                Tira Auditora
+              </mat-card-title>
+              <mat-card-subtitle>Registro de todas las acciones realizadas en la aplicación</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <div *ngIf="auditLogs.length === 0" class="no-logs">
+                <p>No hay registros de auditoría disponibles</p>
+              </div>
+              
+              <table mat-table [dataSource]="auditLogs" class="audit-table" *ngIf="auditLogs.length > 0">
+                <!-- Fecha Column -->
+                <ng-container matColumnDef="fecha">
+                  <th mat-header-cell *matHeaderCellDef>Fecha y Hora</th>
+                  <td mat-cell *matCellDef="let log">{{ log.fecha }}</td>
+                </ng-container>
+
+                <!-- Usuario Column -->
+                <ng-container matColumnDef="usuario">
+                  <th mat-header-cell *matHeaderCellDef>Usuario</th>
+                  <td mat-cell *matCellDef="let log">{{ log.usuario }}</td>
+                </ng-container>
+
+                <!-- Acción Column -->
+                <ng-container matColumnDef="accion">
+                  <th mat-header-cell *matHeaderCellDef>Acción</th>
+                  <td mat-cell *matCellDef="let log">
+                    <span class="action-badge" [ngClass]="'action-' + log.accion.toLowerCase().replace('_', '-')">
+                      {{ log.accion }}
+                    </span>
+                  </td>
+                </ng-container>
+
+                <!-- Detalles Column -->
+                <ng-container matColumnDef="detalles">
+                  <th mat-header-cell *matHeaderCellDef>Detalles</th>
+                  <td mat-cell *matCellDef="let log">{{ log.detalles }}</td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="displayedAuditColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: displayedAuditColumns;"></tr>
+              </table>
+            </mat-card-content>
+          </mat-card>
+        </mat-tab>
+      </mat-tab-group>
+    </div>
+
     <!-- Vista para Comisionista -->
     <div *ngIf="isComisionista" class="comisionista-view">
-      <!-- Tabs para navegar entre Contratos y Recomendaciones -->
+      <!-- Tabs para navegar entre Contratos, Recomendaciones y Gestión de Acciones -->
       <mat-tab-group [(selectedIndex)]="selectedTabIndex" (selectedIndexChange)="onTabChange($event)" class="comisionista-tabs">
         <!-- Tab de Contratos -->
         <mat-tab label="Contratos">
@@ -312,7 +782,7 @@
     </div>
 
     <!-- Vista para Inversionista (vista original) -->
-    <div *ngIf="!isComisionista">
+    <div *ngIf="isInversionista">
       <!-- Recomendaciones del Comisionista -->
       <mat-card class="recommendations-card" *ngIf="recomendaciones.length > 0">
         <mat-card-header>
