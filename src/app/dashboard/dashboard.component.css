@@ -1232,20 +1232,6 @@
   }
 }
 
-.stock-dialog-card mat-card-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 1.5rem;
-  border-radius: 12px 12px 0 0;
-  margin: -16px -16px 16px -16px;
-}
-
-.stock-dialog-card mat-card-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: white;
-}
-
 .stock-dialog-card mat-card-subtitle {
   color: rgba(255, 255, 255, 0.9);
   margin-top: 0.5rem;
@@ -1273,9 +1259,6 @@
 
 .stock-form-card mat-card-subtitle {
   font-size: 0.875rem;
-}
-
-.stock-form-card mat-card-subtitle {
   color: rgba(255, 255, 255, 0.9);
   margin-top: 0.5rem;
 }
